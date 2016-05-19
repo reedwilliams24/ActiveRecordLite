@@ -22,11 +22,5 @@ module Searchable
 end
 
 class SQLObject
-  include Searchable
   extend Searchable
-  # def self.where(params)
-  #
-  # end
-
-  # Mixin Searchable here...
 end

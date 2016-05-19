@@ -19,45 +19,101 @@ core functionality.
 
 Example:
 
+### Where
 ```ruby
-require './ActiveRecordLite/active_record_lite'
-DBConnection.open('trees.db')
+def where(params)
 
-class Tree < SQLObject
-  belongs_to :family
-  has_one_through :type, :family, :type
+  where_string = params.map{|key, _| "#{key} = ?"}.join(" AND ")
 
-  finalize!
+  query = DBConnection.execute(<<-SQL, *params.values)
+    SELECT
+      #{self.table_name}.*
+    FROM
+      #{self.table_name}
+    WHERE
+      #{where_string}
+  SQL
+
+  query.map{|attrs| self.new(attrs)}
+
 end
-
-class Family < SQLObject
-  has_many :trees
-  belongs_to :type
-
-  finalize!
-end
-
-class Type < SQLObject
-  has_many :families
-
-  finalize!
-end
-
-type = Type.new(name: "Confier")
-type.save
-
-family = Family.new(name: "Cypress", type_id: type.id)
-family.save
-
-tree = Tree.new(name: "Dawn Redwood", family_id: family.id)
-tree.save
-
-Tree.where(name: "Dawn Redwood") # => [#<Tree:0x007ffc642ec080 @attributes={:id=>1, :name=>"Dawn Redwood", :family_id=>1}>]
-Tree.where(name: "Dawn Redwood").first.family # => #<Family:0x007ffc641ff140 @attributes={:id=>1, :name=>"Cypress", :type_id=>1}>
-Tree.where(name: "Dawn Redwood").first.type # => #<Type:0x007ffc64088fa0 @attributes={:id=>1, :name=>"Confier"}>
 ```
 
-## To Do
-- [ ] Write `has_many_through`
-- [ ] Write `includes` to prefetch data
-- [ ] Write `joins`
+```ruby
+class BelongsToOptions < AssocOptions
+  def initialize(name, options = {})
+      @primary_key = options[:primary_key] || :id
+      @foreign_key = options[:foreign_key] || (name.to_s+"_id").to_sym
+      @class_name = options[:class_name] || name.to_s.camelcase
+  end
+end
+
+
+def belongs_to(name, options = {})
+  self.assoc_options[name] = BelongsToOptions.new(name, options)
+
+  define_method(name) do
+    options = self.class.assoc_options[name]
+
+    key_val = self.send(options.foreign_key)
+    options
+      .model_class
+      .where(options.primary_key => key_val)
+      .first
+  end
+end
+
+class HasManyOptions < AssocOptions
+  def initialize(name, self_class_name, options = {})
+    @primary_key = options[:primary_key] || :id
+    @foreign_key = options[:foreign_key] || (self_class_name.downcase+"_id").to_sym
+    @class_name = options[:class_name] || name.to_s.camelcase.singularize
+  end
+end
+
+def has_many(name, options = {})
+  self.assoc_options[name] =
+    HasManyOptions.new(name, self.name, options)
+
+  define_method(name) do
+    options = self.class.assoc_options[name]
+
+    key_val = self.send(options.primary_key)
+    options
+      .model_class
+      .where(options.foreign_key => key_val)
+  end
+end
+
+def has_one_through(name, through_name, source_name)
+  define_method(name) do
+    through_options = self.class.assoc_options[through_name]
+    source_options =
+      through_options.model_class.assoc_options[source_name]
+
+    through_table = through_options.table_name
+    through_pk = through_options.primary_key
+    through_fk = through_options.foreign_key
+
+    source_table = source_options.table_name
+    source_pk = source_options.primary_key
+    source_fk = source_options.foreign_key
+
+    key_val = self.send(through_fk)
+    results = DBConnection.execute(<<-SQL, key_val)
+      SELECT
+        #{source_table}.*
+      FROM
+        #{through_table}
+      JOIN
+        #{source_table}
+      ON
+        #{through_table}.#{source_fk} = #{source_table}.#{source_pk}
+      WHERE
+        #{through_table}.#{through_pk} = ?
+    SQL
+
+    source_options.model_class.parse_all(results).first
+  end
+end
+```
