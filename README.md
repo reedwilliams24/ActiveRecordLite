@@ -1,4 +1,4 @@
-# ActiveRecordLite
+# Active Record Lite
 ActiveRecordLite is an object-relational mapping system inspired by
 ActiveRecord. Uses Ruby's metaprogramming capabilities to implement its
 core functionality.
