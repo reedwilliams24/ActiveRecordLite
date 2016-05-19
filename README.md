@@ -13,12 +13,6 @@ core functionality.
 - `SQLObject#has_many(name, options)` is the inverse of `#belongs_to`; defines a method, `name` that returns an array of SQLObjects with appropriate `#model_name`s and `:primary_key` values
 - `SQLObject#has_one_through(name, through_name, source_name)` defines a relationship between two SQLObjects through two `#belongs_to` relationships. Defines a method, `name`, that returns a SQLObject whose `#model_name` corresponds to the `source_name`
 
-## Using ActiveRecordLite
-- Add this repo to your project
-- Require `'active_record_lite'`
-
-Example:
-
 ### Where
 ```ruby
 def where(params)
@@ -39,6 +33,7 @@ def where(params)
 end
 ```
 
+### Belongs To
 ```ruby
 class BelongsToOptions < AssocOptions
   def initialize(name, options = {})
@@ -62,7 +57,10 @@ def belongs_to(name, options = {})
       .first
   end
 end
+```
 
+### Has Many
+```ruby
 class HasManyOptions < AssocOptions
   def initialize(name, self_class_name, options = {})
     @primary_key = options[:primary_key] || :id
@@ -84,7 +82,10 @@ def has_many(name, options = {})
       .where(options.foreign_key => key_val)
   end
 end
+```
 
+### Has One Through
+```ruby
 def has_one_through(name, through_name, source_name)
   define_method(name) do
     through_options = self.class.assoc_options[through_name]
